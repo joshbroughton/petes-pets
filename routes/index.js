@@ -3,9 +3,14 @@ const Pet = require('../models/pet');
 module.exports = (app) => {
 
   /* GET home page. */
-  app.get('/', (req, res) => {
-    Pet.find().exec((err, pets) => {
-      res.render('pets-index', { pets: pets });    
-    });
+  app.get('/', async (req, res) => {
+    try {
+      const page = req.query.page || 1;
+      const results = await Pet.paginate({}, { page: page });
+      res.render('pets-index', { pets: results.docs });
+    } catch (err) {
+      console.log(err.message);
+      res.status(500);
+    }
   });
 }
