@@ -105,10 +105,13 @@ module.exports = (app) => {
       console.log(req.body);
       const stripe = require("stripe")(process.env.PRIVATE_STRIPE_API_KEY);
       const token = req.body.stripeToken;
+      let petId = req.body.petId || req.params.id;
+
+      const pet = await Pet.findById(petId);
       const charge = await stripe.charges.create({
         amount: 999,
         currency: 'usd',
-        description: 'Example charge',
+        description: `Purchased ${pet.name}, ${pet.species}`,
         source: token,
       });
       res.redirect(`/pets/${req.params.id}`);
