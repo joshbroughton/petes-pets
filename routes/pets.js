@@ -1,3 +1,30 @@
+const multer  = require('multer');
+const upload = multer({ dest: 'uploads/' });
+const Upload = require('s3-uploader');
+
+const client = new Upload(process.env.S3_BUCKET, {
+  aws: {
+    path: 'pets/avatar',
+    region: process.env.S3_REGION,
+    acl: 'public-read',
+    accessKeyId: process.env.AWS_ACCESS_KEY_ID,
+    secretAccessKey: process.env.AWS_SECRET_ACCESS_KEY
+  },
+  cleanup: {
+    versions: true,
+    original: true
+  },
+  versions: [{
+    maxWidth: 400,
+    aspect: '16:10',
+    suffix: '-standard'
+  },{
+    maxWidth: 300,
+    aspect: '1:1',
+    suffix: '-square'
+  }]
+});
+
 // MODELS
 const Pet = require('../models/pet');
 
@@ -34,35 +61,60 @@ module.exports = (app) => {
   });
 
   // CREATE PET
-  app.post('/pets', async (req, res) => {
-    try {
-      let pet = new Pet(req.body);
+  app.post('/pets', upload.single('avatar'), async (req, res, next) => {
+    let pet = new Pet(req.body);
+    if (req.file) {
+      // Upload the images
+      await client.upload(req.file.path, {}, async function (err, versions, meta) {
+        if (err) {
+          console.log(err.message)
+          return res.status(400).send({ err: err })
+        };
+
+        // Pop off the -square and -standard and just use the one URL to grab the image
+        for (const image of versions) {
+          let urlArray = image.url.split('-');
+          urlArray.pop();
+          let url = urlArray.join('-');
+          pet.avatarUrl = url;
+          await pet.save();
+        }
+
+        res.send({ pet: pet });
+      });
+    } else {
       await pet.save();
       res.send({ pet: pet });
-    } catch(err) {
-      console.log(err.message);
-       res.status(500);
     }
-  });
-  // CREATE PET
-  // app.post('/pets', (req, res) => {
-  //   let pet = new Pet(req.body);
-
-  //   pet.save()
-  //     .then((pet) => {
-  //       res.send({ pet: pet });
-  //     })
-  //     .catch((err) => {
-  //       // STATUS OF 400 FOR VALIDATIONS
-  //       res.status(400).send(err.errors);
-  //     }) ;
-  // });
+  })
 
   // SHOW PET
   app.get('/pets/:id', (req, res) => {
-    Pet.findById(req.params.id).exec((err, pet) => {
-      res.render('pets-show', { pet: pet });
-    });
+    try {
+      Pet.findById(req.params.id).exec((err, pet) => {
+        res.render('pets-show', { pet: pet });
+      });
+    } catch(err) {
+      console.log(err.message)
+    }
+  });
+
+  // PURCHASE PET
+  app.post('/pets/:id/purchase', async (req, res) => {
+    try {
+      console.log(req.body);
+      const stripe = require("stripe")(process.env.PRIVATE_STRIPE_API_KEY);
+      const token = req.body.stripeToken;
+      const charge = await stripe.charges.create({
+        amount: 999,
+        currency: 'usd',
+        description: 'Example charge',
+        source: token,
+      });
+      res.redirect(`/pets/${req.params.id}`);
+    } catch(err) {
+      console.log(err.message)
+    }
   });
 
   // EDIT PET
