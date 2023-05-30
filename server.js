@@ -15,7 +15,7 @@ const cookieParser = require('cookie-parser');
 // parse http response bodies
 const bodyParser = require('body-parser');
 // use HTTP verbs that aren't universally supported
-const methodOverride = require('method-override')
+const methodOverride = require('method-override');
 
 const app = express();
 

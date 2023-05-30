@@ -1,6 +1,7 @@
 const multer  = require('multer');
 const upload = multer({ dest: 'uploads/' });
 const Upload = require('s3-uploader');
+const mailer = require('../utils/mailer');
 
 const client = new Upload(process.env.S3_BUCKET, {
   aws: {
@@ -114,7 +115,13 @@ module.exports = (app) => {
         description: `Purchased ${pet.name}, ${pet.species}`,
         source: token,
       });
-      res.redirect(`/pets/${req.params.id}`);
+
+      const user = {
+        email: req.body.stripeEmail,
+        amount: charge.amount / 100,
+        petName: pet.name
+      };
+      mailer.sendMail(user, req, res);
     } catch(err) {
       console.log(err.message)
     }
